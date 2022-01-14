@@ -439,7 +439,7 @@ gridExtra::grid.arrange(
   pcoaplot(carlong, "part", "Carabidae"),
   pcoaplot(carlong, "num", "Carabidae"),
   ncol = 2)
-
+# my final comment
 
 # 8. Final remarks --------------------------------------------------------
 
