@@ -286,14 +286,14 @@ for.table %>%
   fmsb::radarchart(title = "Carabidae, fon zone", 
              axistype = 1, 
              caxislabels=seq(0, max(.), by = 25),
-             axislabcol = "darkgrey", #make darker
+             axislabcol = "darkgrey",
              cglcol = "darkgrey", 
              pcol = c(rgb(1, 0.5, 0.15, 1), rgb(0, 0.8, 0.4, alpha = 1)),
              pfcol = c(rgb(1, 0.5, 0.15, 0.4), rgb(0, 0.8, 0.4, alpha = 0.4)), 
              plty = c(1,1)
   ); legend(
     x = 0.8, y=1.3,  pch=19 , bty	= "n",
-    legend = c(2005, 2018), #fill = "white", border = "black",
+    legend = c(2005, 2018), 
     col = c(rgb(1, 0.5, 0.15), rgb(0, 0.8, 0.4))
   )
 par(mfrow = c(1,1)) # save pdf 9*14
