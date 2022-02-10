@@ -1,6 +1,6 @@
 # Revda_2021
 
-Source code of data processing for the artice: Zolotarev etc 2021 Revda // 
+Source code of data processing for the artice: Zolotarev etc 2022 Revda // 
 
 [![CC BY-SA 4.0][cc-by-sa-shield]][cc-by-sa]
 
