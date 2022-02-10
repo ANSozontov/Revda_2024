@@ -1,4 +1,4 @@
-# Revda_2021
+# Revda_2022
 
 Source code of data processing for the artice: Zolotarev etc 2022 Revda // 
 
