@@ -1,6 +1,8 @@
-# Revda_2022
+Raw data & source code for the artice:
 
-Source code of data processing for the artice: Zolotarev etc 2022 Revda // 
+# Напочвенные членистоногие темнохвойного леса после снижения выбросов медеплавильного завода: происходит ли восстановление сообществ?
+
+ Zolotarev etc 2022 Revda // 
 
 [![CC BY-SA 4.0][cc-by-sa-shield]][cc-by-sa]
 
