@@ -1,19 +1,174 @@
+library(tidyverse)
+
+# Carabidae ----------------------------------------------------------------
+new <- readxl::read_excel("clean_data10.xlsx", sheet = "Carabidae.Lines") %>% 
+    pivot_longer(names_to = "taxa", values_to = "num", -c("year", "zone", "line", "tur", "n.traps")) %>% 
+    filter(num > 0) %>% 
+    mutate(taxa = str_replace_all(taxa, "_+", "_"),
+        species = sapply(taxa, function(a){
+        a <- strsplit(a, "_")[[1]]
+        str_glue("{substr(a[1], 1, 5)}_{substr(a[2], 1, 4)}")
+        })
+    ) 
+
+old.b <- readxl::read_excel("Carabidae_long_Бельская_2022-01-28.xlsx") %>% 
+    mutate_if(is.timepoint, as.Date) %>% 
+    mutate(
+        tur0 = tur, 
+        tur = case_when(str_detect(date1, "-05-") ~ 1, TRUE ~ 2)) %>% 
+    group_by(zone, year, tur, line, species) %>% 
+    summarise(num = sum(num), n_traps = length(unique(trap)), .groups = "drop")
+
+expand_grid(zone = c("fon", "imp"), 
+            year = c(2005, 2018), 
+            tur  = 1:2, 
+            line = 1:7) %>% 
+    mutate(type = paste0(year, zone, tur, line)) %>% 
+    split(.$type) %>% 
+    # `[`(1:2) %>%
+    lapply(function(x){
+        old_df <- old.b %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line, species != "_no_species")
+        new_df <- new %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line)
+        species <- list(old_df, new_df) %>% 
+            map(~.x %>% 
+                    pull(species) %>%
+                    unique() %>%
+                    sort())
+        
+        not_in12 <- paste0(species[[1]][!(species[[1]] %in% species[[2]])], collapse = ", ")
+        not_in21 <- paste0(species[[2]][!(species[[2]] %in% species[[1]])], collapse = ", ")
+        
+        tibble(
+            equal_length = length(species[[1]]) == length(species[[2]]), 
+            not_in12,
+            not_in21, 
+            abu_diff = sum(old_df$num) - sum(new_df$num)
+            )
+    }) %>% 
+    map_dfr(rbind, .id = "id") %>% 
+    filter(abu_diff != 0 | not_in12 != "")
+
+# Arachnida ----------------------------------------------------------------
 new <- readxl::read_excel("clean_data10.xlsx", sheet = "Arachnida_united") %>% 
     pivot_longer(names_to = "taxa", values_to = "num", -c("year", "zone", "line", "tur", "n.traps")) %>% 
-    separate(taxa, into = c("sp", "sex"), sep = "-")
-    # group_by(year, zone, line) %>% 
-    # mutate(part = num/sum(num)) %>% 
-    # ungroup()
+    mutate(tur = case_when(tur == "beg" ~ 1, TRUE ~ 2),
+           taxa = str_replace_all(taxa, "-m", "--m"), 
+           taxa = str_replace_all(taxa, "-f", "--f")) %>% 
+    separate(taxa, into = c("sp", "sex"), sep = "--") %>% 
+    filter(num > 0)
 
-old <- readxl::read_excel("clean_data10.xlsx", sheet = "Arachnida_separated") %>% 
-    mutate(end = as.Date(end)) %>% 
-    select(-n_traps, -start)
-    
+old.z <- readxl::read_excel("clean_data10.xlsx", sheet = "Arachnida_separated") %>% 
+    mutate_if(is.timepoint, as.Date) %>% 
+    filter(start %in% old.b$date1, end %in% old.b$date2) %>% 
+    mutate(
+        tur = case_when(str_detect(start, "-05-") ~ 1, TRUE ~ 2),
+        # end = as.Date(end), 
+        # tur = case_when(str_detect(end, "-08-") ~ 2, TRUE ~ 1),
+        sp = case_when(is.na(sp) ~ paste0(family, " gen. sp."), 
+                          TRUE ~ sp)) %>% 
+    select(zone, year, tur, line, sp, sex, num) %>% 
+    filter(num > 0)
+
+expand_grid(zone = c("fon", "imp"), 
+            year = c(2005, 2018), 
+            tur  = 1:2, 
+            line = 1:7) %>% 
+    mutate(type = paste0(year, zone, tur, line)) %>% 
+    split(.$type) %>% 
+    # `[`(1:2) %>%
+    lapply(function(x){
+        old_df <- old.z %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line) # species != "_no_species")
+        new_df <- new %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line)
+        species <- list(old_df, new_df) %>% 
+            map(~.x %>% 
+                    pull(sp) %>%
+                    unique() %>%
+                    sort())
+        
+        not_in12 <- paste0(species[[1]][!(species[[1]] %in% species[[2]])], collapse = ", ")
+        not_in21 <- paste0(species[[2]][!(species[[2]] %in% species[[1]])], collapse = ", ")
+        
+        tibble(
+            equal_length = length(species[[1]]) == length(species[[2]]), 
+            not_in12,
+            not_in21, 
+            abu_diff = sum(old_df$num) - sum(new_df$num)
+        )
+    }) %>% 
+    map_dfr(rbind, .id = "id") %>% 
+    filter(abu_diff != 0 | not_in12 != "")
+
+expand_grid(zone = c("fon", "imp"), 
+            year = c(2005, 2018), 
+            tur  = 1:2, 
+            line = 1:7) %>% 
+    mutate(type = paste0(year, zone, tur, line)) %>% 
+    split(.$type) %>% 
+    # `[`(1:2) %>%
+    lapply(function(x){
+        old_df <- old.z %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line) %>% # species != "_no_species")
+            group_by(zone, year, tur, line, sp, sex) %>% 
+            summarise(num = sum(num), .groups = "drop")
+        new_df <- new %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line)
+        # paste0(x$zone, "_", x$year, "_t", x$tur, "_l", x$line)
+        species <- list(old_df, new_df) %>% 
+            map(~.x %>% 
+                    pull(sp) %>%
+                    unique() %>%
+                    sort())
+        
+        not_in12 <- paste0(species[[1]][!(species[[1]] %in% species[[2]])], collapse = ", ")
+        not_in21 <- paste0(species[[2]][!(species[[2]] %in% species[[1]])], collapse = ", ")
+        
+        tibble(
+            equal_length = length(species[[1]]) == length(species[[2]]), 
+            not_in12,
+            not_in21, 
+            abu_diff = sum(old_df$num) - sum(new_df$num)
+        )
+    })
 
 
+errors <- expand_grid(zone = c("fon", "imp"), 
+            year = c(2005, 2018), 
+            tur  = 1:2, 
+            line = 1:7) %>% 
+    mutate(type = paste0(year, zone, tur, line)) %>% 
+    split(.$type) %>% 
+    # `[`(1:2) %>%
+    lapply(function(x){
+        old_df <- old.z %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line) %>% # species != "_no_species")
+            group_by(zone, year, tur, line, sp, sex) %>% 
+            summarise(num = sum(num), .groups = "drop")
+        new_df <- new %>%
+            filter(zone == x$zone, year == x$year, tur == x$tur, line == x$line)
+        
+        
+        species <- list(old_df, new_df) %>% 
+            map(~.x %>% 
+                    pull(sp) %>%
+                    unique() %>%
+                    sort())
+        full_join(
+            select(old_df, sp, sex, old_num = num),
+            select(new_df, sp, sex, new_num = num),
+            by = c("sp", "sex")
+        ) %>% 
+            mutate(
+                old_num = case_when(is.na(old_num) ~ 0, TRUE ~ old_num),
+                new_num = case_when(is.na(new_num) ~ 0, TRUE ~ new_num),
+                PROBLEMS = old_num != new_num) %>% 
+        list(data = ., nm = paste0(x$zone, "_", x$year, "_t", x$tur, "_l", x$line))
+    }) %>% 
+    transpose()
+errors$data %>% 
+    `names<-`(errors$nm) %>% 
+    writexl::write_xlsx("tmp.xlsx")
 
-    pull(start) %>% unique
-    filter(str_detect(`Примечание 1`, "исключить", negate = TRUE) | is.na(`Примечание 1`)) %>% 
-    mutate(Tur = case_when(tur == 1 ~ "beg", tur == 2 ~ "end"), 
-           duration = case_when(is.na(duration) ~ 5, TRUE ~ duration)) %>% 
-    select(year, zone, season = tur, line, trap, taxa, num)

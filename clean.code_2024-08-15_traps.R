@@ -154,7 +154,6 @@ spiderchart <- function(
     }
 }
 # 0.1. Data load ------------------------------------------------------------
-# library(foreach)
 library(tidyverse)
 
 theme_set(
@@ -163,14 +162,29 @@ theme_set(
         legend.position = "bottom",
         panel.grid = element_blank())
 )
-carlong <- readxl::read_excel("clean_data9.xlsx", sheet = "Carabidae.Lines2") %>% 
-    pivot_longer(names_to = "taxa", values_to = "num", -c("year", "zone", "line")) %>% 
-    group_by(year, zone, line) %>% 
-    mutate(part = num/sum(num)) %>% 
-    ungroup()
-cartraits <- readxl::read_excel("clean_data9.xlsx", sheet = "Carabidae.Traits") %>% 
+
+cartraits <- readxl::read_excel("clean_data11.xlsx", sheet = "Carabidae.Traits") %>% 
     select(taxa, fenol:size____) %>% 
-    right_join(., carlong, by = "taxa") %>% 
+    mutate(species = sapply(taxa, function(a){
+        a <- strsplit(a, "_")[[1]]
+        str_glue("{substr(a[1], 1, 5)}_{substr(a[2], 1, 4)}")
+    }), .after = taxa)
+carlong <- readxl::read_excel("clean_data11.xlsx", sheet = "Carabidae.Traps") %>% 
+    mutate(
+        tur = case_when(str_detect(date1, "-05-") ~ 1, TRUE ~ 2), 
+        n_traps = 7,
+        n_days = case_when(year == 2005 ~ 3, year == 2018 ~ 5), 
+        num = num/n_traps/n_days*100
+        ) %>% 
+    group_by(year, zone, line, species) %>% 
+    summarise(num = sum(num), .groups = "drop") %>% 
+    arrange(year, zone, line, species)
+
+carwide <- carlong %>% 
+    filter(species != "_no_species") %>%
+    pivot_wider(names_from = species, values_from = num, values_fill = 0)
+cartraits <- cartraits %>% 
+    right_join(., carlong, by = "species") %>% 
     mutate(
         type = paste0(zone, "_", year), 
         storey__ = case_when(
@@ -190,14 +204,15 @@ aratraits <- readxl::read_excel("clean_data9.xlsx", sheet = "Arachnida.Traits") 
     mutate(type = paste0(zone, "_", year))
 
 # 0.2. Rarefication ---------------------------------------------------------
-rar.car <- readxl::read_excel("clean_data9.xlsx", sheet = "Carabidae.Lines2") %>% 
+rar.car <- carwide %>% 
+    #readxl::read_excel("clean_data9.xlsx", sheet = "Carabidae.Lines2") %>% 
     unite(type, year, zone, line, sep = "_") %>% 
     column_to_rownames("type") %>% 
     t() %>% 
     as_tibble() %>% 
     lapply(., function(a){sort(round(a[a>0]), decreasing = TRUE)}) %>% 
     iNEXT::iNEXT(., q = 0, size = c(100, 1000), 
-                    datatype = "abundance", nboot = 999) %>%  # 999
+                    datatype = "abundance", nboot = 9) %>%  # 999
     pluck("iNextEst", "size_based") %>% 
     as_tibble %>% 
     filter(m == 100 | Method == "Observed") %>% 
@@ -260,12 +275,12 @@ res1 <- res1 %>%
     full_join(agg(cartraits, "habitats", "c."), by = bbyy) %>% 
     full_join(agg(cartraits, "humidity", "c."), by = bbyy) %>% 
     full_join(agg(cartraits, "dispersl", "c."), by = bbyy) %>% 
-    full_join(agg(cartraits, "size____", "c."), by = bbyy) %>% 
-    full_join(agg(aratraits, "size____", "a."), by = bbyy) %>% 
-    full_join(agg(aratraits, "humidity", "a."), by = bbyy) %>% 
-    full_join(agg(aratraits, "habitats", "a."), by = bbyy) %>% 
-    full_join(agg(aratraits, "lifeform", "a."), by = bbyy) %>% 
-    full_join(agg(aratraits, "storey__", "a."), by = bbyy)
+    full_join(agg(cartraits, "size____", "c."), by = bbyy) #%>% 
+    # full_join(agg(aratraits, "size____", "a."), by = bbyy) %>% 
+    # full_join(agg(aratraits, "humidity", "a."), by = bbyy) %>% 
+    # full_join(agg(aratraits, "habitats", "a."), by = bbyy) %>% 
+    # full_join(agg(aratraits, "lifeform", "a."), by = bbyy) %>% 
+    # full_join(agg(aratraits, "storey__", "a."), by = bbyy)
 for.table <- res1 %>%
     pivot_longer(values_to = "vl", names_to = "vr", -1:-3) %>%
     group_by(year, zone, vr) %>%
@@ -330,23 +345,25 @@ dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
     data.frame() %>% 
     `names<-`(c("vr", "lab"))
 e <- dictionary %>% 
-    left_join(effs, by = "vr") %>% 
+    as_tibble() %>% 
+    left_join(effs, by = "vr") %>%  
+    filter(substr(vr, 1, 2) != "a.") %>% ###
     transmute(vr, year = as.character(year), Est, CI_lower, CI_upper, 
         taxa = case_when(substr(vr, 1,1) == "a" ~ "Arachnida", TRUE ~ "Carabidae"),
         lab) 
     
 
 eviz <- rbind(
-    e %>% 
-        filter(taxa == "Arachnida") %>% 
-        mutate(nn = sort(c(seq(51, 5, -3), seq(50, 5, -3)), decreasing = TRUE), 
-               .before = "taxa") %>% 
-        mutate(lab = ifelse(duplicated(lab), ".", lab)),
-    expand_grid(vr = NA, year = NA, Est = NA, 
-                CI_lower = NA, CI_upper = NA, 
-                nn = seq(49+24, 1, -3), 
-                taxa = c("Arachnida", "Carabidae" ), 
-                lab = "."),
+    # e %>% 
+    #     filter(taxa == "Arachnida") %>% 
+    #     mutate(nn = sort(c(seq(51, 5, -3), seq(50, 5, -3)), decreasing = TRUE), 
+    #            .before = "taxa") %>% 
+    #     mutate(lab = ifelse(duplicated(lab), ".", lab)),
+    # expand_grid(vr = NA, year = NA, Est = NA, 
+    #             CI_lower = NA, CI_upper = NA, 
+    #             nn = seq(49+24, 1, -3), 
+    #             taxa = c("Arachnida", "Carabidae" ), 
+    #             lab = "."),
     e %>% 
         filter(taxa == "Carabidae") %>% 
         mutate(nn = sort(c(seq(51, 2, -3), seq(50, 2, -3)), decreasing = TRUE), 
