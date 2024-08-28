@@ -40,7 +40,7 @@
 #     %The article name% // Экология. 2022. № 3. С. xx-xxx. 
 # _________________________________________________________________________
 
-# 0.2. SpiderCharts -------------------------------------------------------
+# 0.1. SpiderCharts -------------------------------------------------------
 # Spider Charts function comes from: 
 #     https://github.com/ANSozontov/SpiderCharts
 # availiable for regular run via: 
@@ -153,8 +153,8 @@ spiderchart <- function(
             theme_void() 
     }
 }
-# 0.1. Data load ------------------------------------------------------------
-type = "lines" # /"traps"
+# 0.2. Data load ------------------------------------------------------------
+
 library(tidyverse)
 
 theme_set(
@@ -163,47 +163,50 @@ theme_set(
         legend.position = "bottom",
         panel.grid = element_blank())
 )
+type = "lines" # lines/traps
 
-cartraits <- readxl::read_excel("clean_data11.xlsx", sheet = "Carabidae.Traits") %>% 
-    select(taxa, fenol:size____) %>% 
-    mutate(species = sapply(taxa, function(a){
-        a <- strsplit(a, "_")[[1]]
-        str_glue("{substr(a[1], 1, 5)}_{substr(a[2], 1, 4)}")
-    }), .after = taxa)
-carlong <- readxl::read_excel("clean_data11.xlsx", sheet = "Carabidae.Traps") %>% 
-    mutate(
-        tur = case_when(str_detect(date1, "-05-") ~ 1, TRUE ~ 2), 
-        n_traps = 7,
-        n_days = case_when(year == 2005 ~ 3, year == 2018 ~ 5), 
-        num = num/n_traps/n_days*100
-        ) %>% 
-    group_by(year, zone, line, species) %>% 
-    summarise(num = sum(num), .groups = "drop") %>% 
-    arrange(year, zone, line, species)
+carlong <- readxl::read_excel("clean_data12.xlsx", sheet = "Carabidae_separated") %>% 
+    select(-date1, -date2) %>% 
+    pivot_wider(names_from = sp, values_from = num, values_fill = 0, values_fn = sum) %>% 
+    pivot_longer(names_to = "sp", values_to = "num", -1:-6)
+if(type == "lines") {
+    carlong <- carlong %>% 
+        group_by(zone, year, line, sp) %>% 
+        summarise(num = sum(num), .groups = "drop") 
+} else if(type == "traps") {
+    carlong <- carlong %>% 
+        group_by(zone, year, trap, sp) %>% 
+        summarise(num = sum(num), .groups = "drop") %>% 
+        rename(line = trap) 
+} else {
+    break
+}
 
-# carwide <- carlong %>% 
-#     filter(species != "_no_species") %>%
-#     pivot_wider(names_from = species, values_from = num, values_fill = 0)
-cartraits <- cartraits %>% 
-    right_join(., carlong, by = "species") %>% 
-    mutate(
-        type = paste0(zone, "_", year), 
-        storey__ = case_when(
-            storey__ == "gerp.hort" ~ "horto.up",
-            storey__ == "epigeo" ~ "gerpeto", 
-            TRUE ~ storey__)
-        )
+carlong <- carlong %>% 
+    mutate(num = case_when(
+        year == 2005 ~ num/3/7*100, 
+        year == 2018 ~ num/5/7*100)) %>% 
+    group_by(zone, year, line) %>% 
+    mutate(part = num/sum(num)) %>% 
+    ungroup()
 
-aralong <- readxl::read_excel("clean_data12.xlsx", sheet = "Arachnida_separated")
+cartraits <- readxl::read_excel("clean_data12.xlsx", sheet = "Carabidae.Traits") %>% 
+    select(sp, fenol:size____) %>% 
+    right_join(., filter(carlong, sp != "_no_species"), by = "sp") %>% 
+    mutate(type = paste0(zone, "_", year))
+
+aralong <- readxl::read_excel("clean_data12.xlsx", sheet = "Arachnida_separated") %>% 
+    pivot_wider(names_from = sp, values_from = num, values_fill = 0, values_fn = sum) %>% 
+    pivot_longer(names_to = "sp", values_to = "num", -1:-6)
 if(type == "lines") {
     aralong <- aralong %>% 
         group_by(zone, year, line, sp, sex) %>% 
-        summarise(num = sum(num), .groups = "drop")
+        summarise(num = sum(num), .groups = "drop") 
 } else if(type == "traps") {
     aralong <- aralong %>% 
         group_by(zone, year, trap, sp, sex) %>% 
         summarise(num = sum(num), .groups = "drop") %>% 
-        rename(line = trap)
+        rename(line = trap) 
 } else {
     break
 }
@@ -211,19 +214,22 @@ aralong <- aralong %>%
     mutate(num = case_when(
         year == 2005 ~ num/3/7*100, 
         year == 2018 ~ num/5/7*100)) %>% 
-    mutate(part = num/sum(num))
-
-
+    group_by(zone, year, line) %>% 
+    mutate(part = num/sum(num)) %>% 
+    ungroup()
 
 aratraits <- readxl::read_excel("clean_data12.xlsx", sheet = "Arachnida.Traits") %>% 
     select(taxa,  size____:storey__) %>% 
     right_join(., unite(aralong, "taxa", sp, sex, sep = "-"), by = "taxa") %>% 
     mutate(type = paste0(zone, "_", year))
-
+"SUCCESS"
 # 0.2. Rarefication ---------------------------------------------------------
-rar.car <- carwide %>% 
-    #readxl::read_excel("clean_data9.xlsx", sheet = "Carabidae.Lines2") %>% 
-    unite(type, year, zone, line, sep = "_") %>% 
+rar.car <- carlong %>% 
+    unite("type", year, zone, line, sep = "_") %>% 
+    group_by(type, sp) %>% 
+    summarise(num = sum(num), .groups = "drop") %>% 
+    arrange(sp) %>% 
+    pivot_wider(names_from = sp, values_from = num, values_fill = 0) %>% 
     column_to_rownames("type") %>% 
     t() %>% 
     as_tibble() %>% 
@@ -246,7 +252,7 @@ rar.ara <- aralong %>%
     unite("type", year, zone, line, sep = "_") %>% 
     group_by(type, sp) %>% 
     summarise(num = sum(num), .groups = "drop") %>% 
-    arrange( sp) %>% 
+    arrange(sp) %>% 
     pivot_wider(names_from = sp, values_from = num, values_fill = 0) %>% 
     column_to_rownames("type") %>% 
     t() %>% 
@@ -278,7 +284,7 @@ agg <- function(df1, gr, tax) {
         summarise(num = sum(num), .groups = "drop") %>% #num/part
         rename(tp = 1) %>% 
         mutate(tp = paste0(tax, gr, "_", tp)) %>% 
-        pivot_wider(names_from = tp, values_from = num) %>% #num/part
+        pivot_wider(names_from = tp, values_from = num, values_fill = 0) %>% #num/part
         return(.)
 }
 res1 <- expand_grid(year = c(2005,2018), 
@@ -286,12 +292,12 @@ res1 <- expand_grid(year = c(2005,2018),
                    line = 1:7)
 bbyy <- c("year", "zone", "line")
 res1 <- res1 %>% 
-    # full_join(agg(cartraits, "foraging", "c."), by = bbyy) %>% 
-    # full_join(agg(cartraits, "storey__", "c."), by = bbyy) %>% 
-    # full_join(agg(cartraits, "habitats", "c."), by = bbyy) %>% 
-    # full_join(agg(cartraits, "humidity", "c."), by = bbyy) %>% 
-    # full_join(agg(cartraits, "dispersl", "c."), by = bbyy) %>% 
-    # full_join(agg(cartraits, "size____", "c."), by = bbyy) #%>% 
+    full_join(agg(cartraits, "foraging", "c."), by = bbyy) %>%
+    full_join(agg(cartraits, "storey__", "c."), by = bbyy) %>%
+    full_join(agg(cartraits, "habitats", "c."), by = bbyy) %>%
+    full_join(agg(cartraits, "humidity", "c."), by = bbyy) %>%
+    full_join(agg(cartraits, "dispersl", "c."), by = bbyy) %>%
+    full_join(agg(cartraits, "size____", "c."), by = bbyy) %>%
     full_join(agg(aratraits, "size____", "a."), by = bbyy) %>%
     full_join(agg(aratraits, "humidity", "a."), by = bbyy) %>%
     full_join(agg(aratraits, "habitats", "a."), by = bbyy) %>%
@@ -305,10 +311,10 @@ for.table <- res1 %>%
 # 1. Effect Size ----------------------------------------------------------
 # Effect.Size counts
 res2 <- res1 %>% 
-    # full_join(group_by(carlong, year, zone, line) %>% 
-    #               summarise(c.abundance = sum(num), .groups = "drop"), 
-    #           by = bbyy) %>% 
-    # full_join(rar.car, by = bbyy) %>% 
+    full_join(group_by(carlong, year, zone, line) %>%
+                  summarise(c.abundance = sum(num), .groups = "drop"),
+              by = bbyy) %>%
+    full_join(rar.car, by = bbyy) %>%
     full_join(group_by(aralong, year, zone, line) %>% 
                   summarise(a.abundance = sum(num), .groups = "drop"), 
               by = bbyy) %>% 
@@ -343,7 +349,7 @@ dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
     "a.storey___strato", "LS", 
     "c.storey___strato", "LS", 
     "a.storey___gerpeto", "SS",
-    "c.storey___gerpeto", "SS", 
+    "c.storey___epigeo", "SS", 
     "a.habitats_forest", "F",
     "c.habitats_forest", "F", 
     "a.habitats_for.meadow", "E", 
@@ -362,24 +368,24 @@ dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
     `names<-`(c("vr", "lab"))
 e <- dictionary %>% 
     as_tibble() %>% 
-    left_join(effs, by = "vr") %>%  
-    filter(substr(vr, 1, 2) != "a.") %>% ###
+    left_join(effs, by = "vr") %>% 
+    # filter(substr(vr, 1, 2) != "a.") %>% 
     transmute(vr, year = as.character(year), Est, CI_lower, CI_upper, 
         taxa = case_when(substr(vr, 1,1) == "a" ~ "Arachnida", TRUE ~ "Carabidae"),
         lab) 
     
 
 eviz <- rbind(
-    # e %>% 
-    #     filter(taxa == "Arachnida") %>% 
-    #     mutate(nn = sort(c(seq(51, 5, -3), seq(50, 5, -3)), decreasing = TRUE), 
-    #            .before = "taxa") %>% 
-    #     mutate(lab = ifelse(duplicated(lab), ".", lab)),
-    # expand_grid(vr = NA, year = NA, Est = NA, 
-    #             CI_lower = NA, CI_upper = NA, 
-    #             nn = seq(49+24, 1, -3), 
-    #             taxa = c("Arachnida", "Carabidae" ), 
-    #             lab = "."),
+    e %>%
+        filter(taxa == "Arachnida") %>%
+        mutate(nn = sort(c(seq(51, 5, -3), seq(50, 5, -3)), decreasing = TRUE),
+               .before = "taxa") %>%
+        mutate(lab = ifelse(duplicated(lab), ".", lab)),
+    expand_grid(vr = NA, year = NA, Est = NA,
+                CI_lower = NA, CI_upper = NA,
+                nn = seq(49+24, 1, -3),
+                taxa = c("Arachnida", "Carabidae" ),
+                lab = "."),
     e %>% 
         filter(taxa == "Carabidae") %>% 
         mutate(nn = sort(c(seq(51, 2, -3), seq(50, 2, -3)), decreasing = TRUE), 
@@ -426,14 +432,16 @@ p1 <- ggplot(eviz, aes(x = nn, y = Est, ymin = CI_lower,
           panel.background = element_blank())
 
 p1
-ggsave(paste0("Fig.1_", Sys.Date(), ".pdf"),
+ggsave(paste0("Fig.1_", Sys.Date(), "_", type, ".pdf"),
        plot = p1,
        dpi = 1200, width = 9, height = 9)
 
 # 2.1. Ordination -----------------------------------------------------------
 pcoa.run <- function(data, tp) { # , name
     # tp = type where "num" and "part" are possible
-    if(sum(stringr::str_detect(data$taxa, "-")) > 0){
+    if(sum(stringr::str_detect(data$taxa, "-")) > 0 | 
+       "sex" %in% colnames(data)
+       ){
         #block romeves sex val. differences
         data <- data %>% 
             mutate(taxa = substr(taxa, 1, nchar(taxa) - 2)) %>% 
@@ -442,33 +450,25 @@ pcoa.run <- function(data, tp) { # , name
                       part = sum(part),
                       .groups = "drop") 
     }
-    data <- data %>% 
+    wide <- data %>% 
         select(year, zone, line, taxa, val = all_of(tp)) %>% 
-        pivot_wider(names_from = taxa, values_from = val)
+        pivot_wider(names_from = taxa, values_from = val, values_fill = 0)
     dis <- vegan::vegdist(
-        data[,4:ncol(data)], 
+        wide[,4:ncol(wide)], 
         method = "bray", binary = FALSE)
     pcoa <- ape::pcoa(dis)
     eig <- pcoa$values$Eigenvalues 
     eig <- round(eig/sum(eig)*100)
-    pcoa <- cbind(data[,1:3], pcoa$vectors[,1:2]) %>% 
+    pcoa <- cbind(wide[,1:3], pcoa$vectors[,1:2]) %>% 
         mutate(year = as.character(year)) 
-    if(
-        str_detect(paste(colnames(data), collapse = ""), "Agyneta") & 
-        tp == "num"
-    ){
-        pcoa <- mutate(pcoa, Axis.1 = Axis.1 * -1)
-    } else if(
-        str_detect(paste(colnames(data), collapse = ""), "Agonum") &
-        tp == "part"
-    ) {
-        pcoa <- mutate(pcoa, Axis.2 = Axis.2 * -1)
-    }
-    lst(pcoa, eig, dis, data)
+    lst(pcoa, eig, dis, wide)
 }
 
-pcoa.viz <- function(obj, NM = NULL, SBT = NULL){
-    ggplot(obj$pcoa, aes(x = Axis.1, y = Axis.2, shape = year, fill = zone)) + 
+pcoa.viz <- function(obj, NM = NULL, SBT = NULL, x = FALSE, y = FALSE){
+    df <- obj$pcoa
+    if(x){df <- mutate(df, Axis.1 = Axis.1 * -1)}
+    if(y){df <- mutate(df, Axis.2 = Axis.2 * -1)}
+    ggplot(df, aes(x = Axis.1, y = Axis.2, shape = year, fill = zone)) + 
         geom_point(size = 2) + 
         stat_ellipse() + 
         geom_vline(xintercept = 0, linetype = "dotted") + 
@@ -485,6 +485,7 @@ pcoa.viz <- function(obj, NM = NULL, SBT = NULL){
 }
 
 PCOA <- list(aralong, aralong, carlong, carlong) %>% 
+    map(~rename(.x, taxa = sp)) %>% 
     map2(c("part", "num", "part", "num"), 
          ~pcoa.run(.x, .y)) %>% 
     `names<-`(c("Arachnida_Доли", "Arachnida_Обилия", 
@@ -492,14 +493,12 @@ PCOA <- list(aralong, aralong, carlong, carlong) %>%
 
 p2 <- gridExtra::grid.arrange(
     pcoa.viz(PCOA[[2]], "Arachnida", "Обилия"),
-        # scale_fill_manual(values =  c(rgb(0, darkolivegreen10.8, 0.4), rgb(1, 0.5, 0.15))),
     pcoa.viz(PCOA[[1]], "Arachnida", "Доли") ,
-    pcoa.viz(PCOA[[4]], "Carabidae", "Обилия"),
+    pcoa.viz(PCOA[[4]], "Carabidae", "Обилия", F, T),
     pcoa.viz(PCOA[[3]], "Carabidae", "Доли"),
     ncol = 2)
 
-ggsave(paste0("Fig.2_", Sys.Date(), ".pdf"), plot = p2, height = 7, width = 9)
-
+ggsave(paste0("Fig.2_", Sys.Date(), "_", type, ".pdf"), plot = p2, height = 7, width = 9)
 
 # 3. Aggregation: pics ------------------------------------------------------
 dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
@@ -511,7 +510,9 @@ dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
         "xeroph", "xer",
         "strato", "LS",
         "gerpeto", "SS",
+        "epigeo", "SS",
         "horto.up", "HSD",
+        "gerp.hort", "HSD",
         "forest", "F",
         "for.meadow", "E", 
         "meadow","Oh", 
@@ -530,12 +531,13 @@ dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
 
 p3_data <- rbind(
     pivot_longer(select(aratraits, size____:num), 
-        names_to = "categ", values_to = "grps", -c("year", "zone", "line", "num")), 
+        names_to = "categ", values_to = "grps", -c("year", "zone", "line", "num")) %>% 
+        mutate(taxa = "Arachnida"), 
     pivot_longer(select(cartraits, foraging:num), 
-        names_to = "categ", values_to = "grps", -c("year", "zone", "line", "num"))
+        names_to = "categ", values_to = "grps", -c("year", "zone", "line", "num")) %>% 
+        mutate(taxa = "Carabidae")
     ) %>% 
     mutate(
-        taxa = c(rep("Arachnida", 18620), rep("Carabidae", 5376)),
         grps = case_when(
             taxa == "Arachnida" & grps == "water" ~ "nodata",
             taxa == "Carabidae" & grps == "water" ~ "meadow", 
@@ -548,21 +550,25 @@ p3_data <- rbind(
             summarise(v = sum(num), .groups = "drop_last") %>% 
             mutate(v = round(v/sum(v)*100, 1)) %>%
             ungroup() %>% 
+            rbind(expand_grid(zone = c("fon", "imp"), categ = NA,
+                grps = c("epigeo", "gerp.hort", "strato", "meadow"), v = 0)) %>% 
             left_join(dictionary, ., by = "grps") %>% 
             filter(grps != "nodata") %>% 
             select(-categ, -grps) %>% 
             filter(!is.na(zone), !is.na(v)) %>% 
-            pivot_wider(names_from = grps2, values_from = v)
+            pivot_wider(names_from = grps2, values_from = v, values_fn = sum) %>% 
+            mutate_all(function(x){x[is.na(x)] <- 0; x})
     )
 
 p3 <- p3_data %>% 
+    lapply(function(x){x[is.na(x)] <- 0; x}) %>% 
     map(~spiderchart(.x) + 
             theme(legend.position = "bottom")
     ) %>% 
     map2(names(p3_data), ~.x + labs(title = .y))
 
 gridExtra::grid.arrange(p3[[1]], p3[[3]], p3[[2]], p3[[4]], ncol = 2) %>% 
-    ggsave(paste0("Fig.3_", Sys.Date(), ".pdf"), 
+    ggsave(paste0("Fig.3_", Sys.Date(), "_", type, ".pdf"), 
            plot = ., height = 12, width = 12)
 
 
@@ -582,7 +588,7 @@ dummy <- matrix(ncol = 5, byrow = TRUE, data = c(
 permanova <- 1:16 %>% 
     lapply(function(x){
         data <- PCOA[[dummy$i[x]]] %>% 
-            pluck("data") %>% 
+            pluck("wide") %>% 
             select(-line)
         data1 <- filter(data, zone == dummy$z1[x], year == dummy$y1[x])
         dis1 <- mean(vegan::vegdist(data1[,-1:-2]))
@@ -654,4 +660,95 @@ permanova <- permanova %>%
         -starts_with("dis")) %>% 
     mutate_at(c("d1", "d2", "d12", "r2"), function(a){round(a, 2)}) %>% 
     cbind(dummy, .)
-writexl::write_xlsx(permanova, paste0("permanova_", Sys.Date(), ".xlsx"))
+writexl::write_xlsx(permanova, paste0("permanova_", Sys.Date(), "_", type, ".xlsx"))
+
+
+# Table 2 -----------------------------------------------------------------
+for.table %>% 
+    transmute(
+        g = paste(year, zone), 
+        vr = str_replace_all(vr, "a\\.", "Arachnida_"), 
+        vr = str_replace_all(vr, "c\\.", "Carabidae_"), 
+        v = paste0(round(vl), "+-", round(sdvl))) %>% 
+    pivot_wider(names_from = g, values_from = v) %>% 
+    separate(vr, c("taxa", "trait_type", "trait_value"), sep = "_+") %>% 
+    mutate(trait_type = factor(trait_type, levels = c("size", "humidity", 
+        "storey", "habitats", "dispersl", "lifeform", "foraging"))) %>% 
+    arrange(taxa, trait_type) 
+
+aralong %>% 
+    select(sp) %>% 
+    distinct() %>% 
+    pull(sp) %>% 
+    map_dfr(~rgbif::name_backbone(.x, phylum = "Arthropoda")) %>% 
+    select(sp = canonicalName, family) %>% 
+    left_join(aralong, ., by = "sp") %>% 
+    mutate(family = case_when(str_detect(sp, "sp-") ~ "Linyphiidae", TRUE ~ family)) %>% 
+    filter(family %in% c("Linyphiidae", "Lycosidae")) %>% 
+    select(zone, year, line, num, family) %>% 
+    pivot_wider(names_from = family, values_from = num, 
+                values_fill = 0, values_fn = sum) %>% 
+    transmute(g = paste(year, zone), Linyphiidae, Lycosidae) %>% 
+    group_by(g) %>% 
+    summarise_all(function(x){paste0(round(mean(x)), "±", round(sd(x)))}) %>% 
+    column_to_rownames("g") %>% 
+    t %>% 
+    as.data.frame() %>% 
+    rownames_to_column("taxa") %>% 
+    writexl::write_xlsx(paste0("add.table2_", Sys.Date(), "_", type, ".xlsx"))
+
+# Table 4 -----------------------------------------------------------------
+list(Carabidae_dom.comp = carlong %>% 
+    mutate(sp = case_when(sp %in% c("Trechus secalis", "Pterostichus oblongopunctatus",
+        "Pterostichus urengaicus", "Amara brunnea", "Pterostichus niger", 
+        "Cychrus caraboides", "Calathus micropterus") ~ paste0("dom.comp_", sp), 
+        TRUE ~ paste0("оthers_", sp))) %>% 
+    group_by(zone, year, sp) %>% 
+    summarise(ssd = sd(num), num = mean(num), .groups = "drop_last") %>% 
+    mutate(p = num/sum(num)*100) %>% 
+    ungroup() %>% 
+    arrange(desc(num)) %>% 
+    mutate(
+        v = paste0(round(num), "±", round(ssd), " (", round(p, 1), ")"),
+        g = paste0(year, "_", zone),
+        .keep = "unused") %>% 
+    arrange(g, sp) %>% 
+    pivot_wider(names_from = g, values_from = v),
+
+    Arachnida.dom.comp = aralong %>% 
+    mutate(sp = case_when(sp %in% c("Allomengea scopigera", "Lacinius ephippiatus",
+        "Alopecosa taeniata", "Ceratinella brevis", "Asthenargus paganus", 
+        "Nemastoma lugubre", "Pardosa lugubris", "Tapinocyba insecta", 
+        "Tenuiphantes mengei", "Agyneta affinis", "Alopecosa pulverulenta",
+        "Diplocentria bidentata") ~ paste0("dom.comp_", sp), TRUE ~ paste0("оthers_", sp))) %>% 
+    group_by(zone, year, sp) %>% 
+    summarise(ssd = sd(num), num = mean(num), .groups = "drop_last") %>% 
+    mutate(p = num/sum(num)*100) %>% 
+    ungroup() %>% 
+    arrange(desc(num)) %>% 
+    mutate(
+        v = paste0(round(num), "±", round(ssd), " (", round(p, 1), ")"),
+        g = paste0(year, "_", zone),
+        .keep = "unused") %>% 
+    arrange(g, sp) %>% 
+    pivot_wider(names_from = g, values_from = v),
+    
+    rarefic_extrap = lst(rar.car, rar.ara) %>%
+    map(~.x  %>% 
+        group_by(year, zone) %>% 
+        rename_with(~ str_replace(., '^(a|c)\\.', ''), ends_with('.d100') | ends_with('.obs')) %>% 
+        summarise(
+            ssd.d100 = sd(nsp.d100), mn.d100 = mean(nsp.d100), 
+            ssd.obs = sd(nsp.obs), mn.obs = mean(nsp.obs), 
+            .groups = "drop") %>% 
+        transmute(
+            g = paste0(year, "_", zone), 
+            d100 = paste0(round(mn.d100, 1), "±", round(ssd.d100, 1)), 
+            obs = paste0(round(mn.obs, 1), "±", round(ssd.obs, 1))) %>% 
+        pivot_longer(names_to = "n_species", values_to = "v", -g) %>% 
+        pivot_wider(names_from = g, values_from = v)
+    ) %>% 
+    `names<-`(c("Carabidae", "Arachnida")) %>% 
+    map_dfr(rbind, .id = "taxa") 
+) %>% 
+    writexl::write_xlsx(paste0("add.table4_", Sys.Date(), "_", type, ".xlsx"))
