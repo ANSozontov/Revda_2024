@@ -154,7 +154,7 @@ spiderchart <- function(
     }
 }
 # 0.2. Data load ------------------------------------------------------------
-
+type = "lines" # lines/traps
 library(tidyverse)
 
 theme_set(
@@ -163,12 +163,11 @@ theme_set(
         legend.position = "bottom",
         panel.grid = element_blank())
 )
-type = "lines" # lines/traps
 
-carlong <- readxl::read_excel("clean_data12.xlsx", sheet = "Carabidae_separated") %>% 
-    select(-date1, -date2) %>% 
-    pivot_wider(names_from = sp, values_from = num, values_fill = 0, values_fn = sum) %>% 
-    pivot_longer(names_to = "sp", values_to = "num", -1:-6)
+carlong <- readxl::read_excel("clean_data12.xlsx", sheet = "Carabidae_separated") %>%
+    select(-date1, -date2) %>%
+    pivot_wider(names_from = sp, values_from = num, values_fill = 0, values_fn = sum) %>%
+    pivot_longer(names_to = "sp", values_to = "num", -1:-5)
 if(type == "lines") {
     carlong <- carlong %>% 
         group_by(zone, year, line, sp) %>% 
@@ -432,7 +431,7 @@ p1 <- ggplot(eviz, aes(x = nn, y = Est, ymin = CI_lower,
           panel.background = element_blank())
 
 p1
-ggsave(paste0("Fig.1_", Sys.Date(), "_", type, ".pdf"),
+ggsave(paste0(type, "_result/Fig.1_", Sys.Date(), "_", type, ".pdf"),
        plot = p1,
        dpi = 1200, width = 9, height = 9)
 
@@ -490,15 +489,23 @@ PCOA <- list(aralong, aralong, carlong, carlong) %>%
          ~pcoa.run(.x, .y)) %>% 
     `names<-`(c("Arachnida_Доли", "Arachnida_Обилия", 
                 "Carabidae_Доли", "Carabidae_Обилия"))
+if(type == "lines"){
+    p2 <- gridExtra::grid.arrange(
+        pcoa.viz(PCOA[[2]], "Arachnida", "Обилия"),
+        pcoa.viz(PCOA[[4]], "Carabidae", "Обилия", F, T),
+        pcoa.viz(PCOA[[1]], "Arachnida", "Доли") ,
+        pcoa.viz(PCOA[[3]], "Carabidae", "Доли"),
+        ncol = 2)
+} else if (type == "traps"){
+    p2 <- gridExtra::grid.arrange(
+        pcoa.viz(PCOA[[2]], "Arachnida", "Обилия", F, T),
+        pcoa.viz(PCOA[[4]], "Carabidae", "Обилия", F, T),
+        pcoa.viz(PCOA[[1]], "Arachnida", "Доли", T, T) ,
+        pcoa.viz(PCOA[[3]], "Carabidae", "Доли"),
+        ncol = 2)
+}
 
-p2 <- gridExtra::grid.arrange(
-    pcoa.viz(PCOA[[2]], "Arachnida", "Обилия"),
-    pcoa.viz(PCOA[[1]], "Arachnida", "Доли") ,
-    pcoa.viz(PCOA[[4]], "Carabidae", "Обилия", F, T),
-    pcoa.viz(PCOA[[3]], "Carabidae", "Доли"),
-    ncol = 2)
-
-ggsave(paste0("Fig.2_", Sys.Date(), "_", type, ".pdf"), plot = p2, height = 7, width = 9)
+ggsave(paste0(type, "_result/Fig.2_", Sys.Date(), "_", type, ".svg"), plot = p2, height = 7, width = 9)
 
 # 3. Aggregation: pics ------------------------------------------------------
 dictionary <- matrix(byrow = TRUE, ncol = 2, data = {c(
@@ -568,7 +575,7 @@ p3 <- p3_data %>%
     map2(names(p3_data), ~.x + labs(title = .y))
 
 gridExtra::grid.arrange(p3[[1]], p3[[3]], p3[[2]], p3[[4]], ncol = 2) %>% 
-    ggsave(paste0("Fig.3_", Sys.Date(), "_", type, ".pdf"), 
+    ggsave(paste0(type, "_result/Fig.3_", Sys.Date(), "_", type, ".pdf"), 
            plot = ., height = 12, width = 12)
 
 
@@ -660,7 +667,7 @@ permanova <- permanova %>%
         -starts_with("dis")) %>% 
     mutate_at(c("d1", "d2", "d12", "r2"), function(a){round(a, 2)}) %>% 
     cbind(dummy, .)
-writexl::write_xlsx(permanova, paste0("permanova_", Sys.Date(), "_", type, ".xlsx"))
+writexl::write_xlsx(permanova, paste0(type, "_result/permanova_", Sys.Date(), "_", type, ".xlsx"))
 
 
 # Table 2 -----------------------------------------------------------------
@@ -695,7 +702,7 @@ aralong %>%
     t %>% 
     as.data.frame() %>% 
     rownames_to_column("taxa") %>% 
-    writexl::write_xlsx(paste0("add.table2_", Sys.Date(), "_", type, ".xlsx"))
+    writexl::write_xlsx(paste0(type, "_result/add.table2_", Sys.Date(), "_", type, ".xlsx"))
 
 # Table 4 -----------------------------------------------------------------
 list(Carabidae_dom.comp = carlong %>% 
@@ -751,4 +758,4 @@ list(Carabidae_dom.comp = carlong %>%
     `names<-`(c("Carabidae", "Arachnida")) %>% 
     map_dfr(rbind, .id = "taxa") 
 ) %>% 
-    writexl::write_xlsx(paste0("add.table4_", Sys.Date(), "_", type, ".xlsx"))
+    writexl::write_xlsx(paste0(type, "_result/add.table4_", Sys.Date(), "_", type, ".xlsx"))
