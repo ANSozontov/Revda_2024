@@ -435,6 +435,34 @@ ggsave(paste0(type, "_result/Fig.1_", Sys.Date(), "_", type, ".pdf"),
        plot = p1,
        dpi = 1200, width = 9, height = 9)
 
+# 1.1. Effect size vegetation ---------------------------------------------
+veg <- readxl::read_excel("clean_data12.xlsx", sheet = "vegetation_cover") %>% 
+    group_by(year, zone, line) %>% 
+    summarise_all(mean) %>% 
+    ungroup() %>% 
+    select(-trap, -line)
+veg1 <- veg %>% 
+    group_by(year, zone) %>% 
+    summarise(trees = round(mean(trees.cover), 1), 
+              trees_sd = round(sd(trees.cover), 1), 
+              herbs = round(mean(herbs.cover), 1), 
+              herbs_sd = round(sd(herbs.cover), 1), 
+              .groups = "drop")
+veg2 <- veg %>% 
+    pivot_longer(names_to = "var", values_to = "val", -1:-2) %>% 
+    unite("type", zone, var) %>% 
+    split(.$type) %>% 
+    lapply(function(x){
+        SingleCaseES::LRRi(x$val[x$year == 2005], x$val[x$year == 2018])
+    }) %>% 
+    map_dfr(rbind, .id = "type") %>% 
+    mutate_if(is.numeric, function(a){round(a, 2)}) %>% 
+    transmute(type, Eff.Size = Est,  `±` = (CI_upper - CI_lower) / 2)
+
+list(`Средние значения` = veg1, 
+     `Effect Size` = veg2) %>% 
+    writexl::write_xlsx("effect size for vegetation.xlsx")
+
 # 2.1. Ordination -----------------------------------------------------------
 pcoa.run <- function(data, tp) { # , name
     # tp = type where "num" and "part" are possible
