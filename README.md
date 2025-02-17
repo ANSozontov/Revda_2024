@@ -1,10 +1,12 @@
 Raw data & source code for the artice:
 
+# Assemblages of ground-dwelling arachnids and carabids in metal-polluted forests: are there signs of recovery after emission reductions from the Middle Ural copper smelter? 
+
+Belskaya E.A., Sozontov A.N., Zolotarev M.P., Vorobeichik E.L. 2024. Assemblages of ground-dwelling arachnids and carabids in metal-polluted forests: are there signs of recovery after emission reductions from the Middle Ural copper smelter? // Russian Journal of Ecology. 
+
 # Комплексы эпигейных паукообразных и жужелиц загрязненных металлами лесах: есть ли признаки посстановления после снижения выбросов среднеуральского медеплавильного завода?
 
-Бельская Е.А., Созонтов А.Н., Золотарев М.П., Воробейчик Е.Л. 2024. Комплексы эпигейных паукообразных и жужелиц загрязненных металлами лесах: есть ли признаки посстановления после снижения выбросов среднеуральского медеплавильного завода? // Экология. 2024. Т. Х. Вып. Х. С. xx–xx. 
-
-= (eng)
+Бельская Е.А., Созонтов А.Н., Золотарев М.П., Воробейчик Е.Л. 2024. Комплексы эпигейных паукообразных и жужелиц загрязненных металлами лесах: есть ли признаки посстановления после снижения выбросов среднеуральского медеплавильного завода? // Экология. Вып. 1. С. 34–52. 
 
 [![CC BY-SA 4.0][cc-by-sa-shield]][cc-by-sa]
 
