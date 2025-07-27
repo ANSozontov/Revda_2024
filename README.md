@@ -13,12 +13,14 @@ Raw data & source code for the artice:
 [Бельская Е.А.](https://ipae.uran.ru/user/137), [Созонтов А.Н.](https://ipae.uran.ru/Sozontov_AN), [Золотарев М.П.](https://ipae.uran.ru/user/92), [Воробейчик Е.Л.](https://ipae.uran.ru/Vorobeichik_EL) 2025. Комплексы эпигейных паукообразных и жужелиц загрязненных металлами лесах: есть ли признаки посстановления после снижения выбросов среднеуральского медеплавильного завода? // Экология. 2025. № 1. С. 34–52. 
 
 
-[![CC BY-SA 4.0][cc-by-sa-shield]][cc-by-sa]
+
 
 This work is licensed under a
 [Creative Commons Attribution-ShareAlike 4.0 International License][cc-by-sa].
 
 [![CC BY-SA 4.0][cc-by-sa-image]][cc-by-sa]
+
+[![CC BY-SA 4.0][cc-by-sa-shield]][cc-by-sa]
 
 [cc-by-sa]: http://creativecommons.org/licenses/by-sa/4.0/
 [cc-by-sa-image]: https://licensebuttons.net/l/by-sa/4.0/88x31.png
